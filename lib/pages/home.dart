@@ -74,6 +74,19 @@ Uri? linkImportIn(String text) {
   return Uri.parse('obtainium://apps/${Uri.encodeComponent(jsonEncode(apps))}');
 }
 
+/// The URL an `obtainium://add/` [link] carries: its `url` query parameter, or
+/// else its path, decoded once, as senders percent-encode it. A link with
+/// escapes that aren't UTF-8 wasn't encoded that way, so its path is taken as
+/// it was sent.
+String addLinkUrl(Uri link) {
+  final String path = link.path.length > 1 ? link.path.substring(1) : '';
+  try {
+    return link.queryParameters['url'] ?? Uri.decodeComponent(path);
+  } on FormatException {
+    return path;
+  }
+}
+
 /// The JSON an `obtainium://app/` or `apps/` [link] carries: one app, or a
 /// list of them.
 String linkJson(Uri link) =>
@@ -457,10 +470,9 @@ class HomePageState extends State<HomePage> {
 
     Future<void> interpretLink(Uri uri) async {
       final action = uri.host;
-      final data = uri.path.length > 1 ? uri.path.substring(1) : '';
       try {
         if (action == 'add') {
-          await handleAddUrl(data);
+          await handleAddUrl(addLinkUrl(uri));
         } else if (action == 'app' || action == 'apps') {
           // Added as Import from URL list adds whatever is typed into it
           // (importUrlListEntries): each app fetched while the sheet is open,
