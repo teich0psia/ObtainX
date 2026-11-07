@@ -239,13 +239,16 @@ Override the contract methods you need:
 
 ### Deeplink routing (`pages/home.dart`)
 
-`interpretLink(Uri uri)` (line 229) is the single deeplink dispatcher. It parses the
+`interpretLink(Uri uri)` is the single deeplink dispatcher. It parses the
 URI host as the **action** and dispatches accordingly:
 
 | Action (`uri.host`) | Data source | Behaviour |
 | --- | --- | --- |
-| `add` | `uri.queryParameters['url']` or `uri.path.substring(1)` | Standardizes the URL, checks for duplicates, navigates to Add App page |
-| `app` / `apps` | URI-decoded query or path | Adds the link's apps exactly as Import from URL list adds what's typed into it (`importUrlListEntries`, below). A link for one app that's already tracked opens that app instead; a single app added opens its page |
+| `add` | `addLinkUrl`: `uri.queryParameters['url']`, or else `uri.path.substring(1)` decoded once | Standardizes the URL, checks for duplicates, navigates to Add App page |
+| `app` / `apps` | URI-decoded path (`linkJson`) | Adds the link's apps exactly as Import from URL list adds what's typed into it (`importUrlListEntries`, below). A link for one app that's already tracked opens that app instead; a single app added opens its page |
+
+Senders percent-encode the URL in an `add` link's path, so `addLinkUrl` decodes it. A path
+whose escapes aren't UTF-8 wasn't encoded that way, so it's taken as it was sent.
 
 **Import from URL list** takes URLs, `app` / `apps` links (including ones wrapped in the
 "Share app configuration" redirect page), the JSON a link carries, or an export's JSON (its
@@ -275,9 +278,11 @@ Inbound links arrive via `AppLinks` (Android App Links / intent filters) — the
 (cold start) and `uriLinkStream` (warm start) feed into `interpretLink`, with a
 dedup guard so the initial link isn't processed twice.
 
-The **share sheet** (`ACTION_SEND` intent) added in the `MainActivity.kt` native layer
-rewrites shared URLs as `obtainium://add/<url>` before they reach `interpretLink`, so
-the same Dart-side dispatch handles both manual deeplinks and share-target intents.
+The **share sheet** (`ACTION_SEND` intent) doesn't go through `interpretLink`.
+`MainActivity.kt` passes the shared text to Dart unchanged (`getSharedTextFromIntent`, on the
+`dev.imranr.obtainium/share` channel), and `handleSharedText` takes the first URL in it
+(`SharedUrlReceiver.extractFirstUrl`) straight to `handleAddUrl`, where an `add` link's URL
+ends up too. A shared URL was never encoded, so nothing decodes it.
 
 ### Reusable components (`lib/components/`)
 
